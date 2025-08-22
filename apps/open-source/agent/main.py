@@ -82,18 +82,8 @@ async def entrypoint(ctx: agents.JobContext):
         stt = deepgram.STT()
         logging.info("✅ STT (Deepgram) initialized successfully")
         
-        # Use Groq for reliable performance (same as cloud agent)
-        from livekit.plugins import groq
-        
-        # Debug: Check if GROQ_API_KEY is set
-        groq_api_key = os.getenv("GROQ_API_KEY")
-        if not groq_api_key:
-            logging.error("GROQ_API_KEY is not set! Please set this environment variable.")
-            raise Exception("GROQ_API_KEY environment variable is required")
-        
-        logging.info("✅ GROQ_API_KEY found, initializing Groq LLM...")
-        llm = groq.LLM(model="llama-3.3-70b-versatile")
-        logging.info("✅ Groq LLM initialized successfully")
+        # Use OpenAI GPT-4 for reliable performance  
+        llm = openai.LLM(model="gpt-4o")
         
         # Use the pre-warmed VAD model from userdata
         vad = ctx.proc.userdata["vad"]
