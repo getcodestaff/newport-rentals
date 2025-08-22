@@ -15,7 +15,7 @@ from core_agent import BusinessAgent
 from livekit import agents, rtc
 from livekit.agents import JobRequest, UserStateChangedEvent
 from livekit.agents import tts
-from livekit.plugins import deepgram, groq, silero, cartesia
+from livekit.plugins import deepgram, openai, silero, cartesia
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -138,8 +138,8 @@ async def entrypoint(ctx: agents.JobContext):
         stt = deepgram.STT()
         logging.info("✅ STT (Deepgram) initialized successfully")
         
-        # Use Groq for reliable performance with working API key
-        llm = groq.LLM(model="llama-3.3-70b-versatile")
+        # Use OpenAI GPT for reliable performance
+        llm = openai.LLM(model="gpt-4")
         
         # Use the pre-warmed VAD model from userdata
         vad = ctx.proc.userdata["vad"]
