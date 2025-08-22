@@ -1,0 +1,15 @@
+{
+  "dispatch_rule": {
+    "name": "Devin Assistant SIP",
+    "rule": {
+      "dispatchRuleIndividual": {
+        "roomPrefix": "devin-linkedin_"
+      }
+    },
+    "roomConfig": {
+      "agents": [{
+        "agentName": "devin-assistant"
+      }]
+    }
+  }
+}

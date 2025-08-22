@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Agent
+metadata:
+  name: devin-assistant
+spec:
+  displayName: "Devin Assistant - Ashley (LinkedIn Outreach)"
+  description: "Ashley, Devin's personal assistant for LinkedIn connection outreach"
+  entry: main.py
+  requirements: requirements.txt
+  env:
+    - name: BUSINESS_NAME
+      value: "Voice Sell AI"
+    - name: KNOWLEDGE_BASE
+      value: "Devin Mallonee is a Web and Software Developer that loves building fun, tricky or complex solutions to problems. He is always trying to grow his community of designers, developers, business owners and leaders."
+    - name: WEBHOOK_URL
+      value: "https://devin-phone.onrender.com/input-right"

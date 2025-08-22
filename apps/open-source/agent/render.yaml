@@ -1,0 +1,29 @@
+services:
+  - type: worker
+    name: livekit-agent
+    runtime: python
+    repo: https://github.com/getcodestaff/prompt-demos.git
+    rootDir: apps/open-source/agent
+    plan: starter
+    region: oregon
+    buildCommand: pip install -r requirements.txt && python main.py download-files
+    startCommand: python start.py
+    envVars:
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CARTESIA_API_KEY
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: BUSINESS_NAME
+        value: "Voice Sell AI"
+      - key: KNOWLEDGE_BASE
+        value: "VoiceSell provides AI solutions for sales and customer service."

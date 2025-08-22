@@ -1,0 +1,10 @@
+{
+  "dispatch_rule": {
+    "name": "Devin Auto Dispatch",
+    "rule": {
+      "dispatchRuleIndividual": {
+        "roomPrefix": "devin-linkedin_"
+      }
+    }
+  }
+}
