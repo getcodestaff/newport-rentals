@@ -138,8 +138,8 @@ async def entrypoint(ctx: agents.JobContext):
         stt = deepgram.STT()
         logging.info("✅ STT (Deepgram) initialized successfully")
         
-        # Use OpenAI GPT for reliable performance
-        llm = openai.LLM(model="gpt-4")
+        # Use OpenAI GPT-4 for reliable performance  
+        llm = openai.LLM(model="gpt-4o")
         
         # Use the pre-warmed VAD model from userdata
         vad = ctx.proc.userdata["vad"]
