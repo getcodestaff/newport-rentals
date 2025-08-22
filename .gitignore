@@ -2,5 +2,6 @@
 */agent/.env
 
 .env
+apps/.env
+apps/open-cource/agent/.env
 
-agent/.env
