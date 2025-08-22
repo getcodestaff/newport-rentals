@@ -49,7 +49,8 @@ async def entrypoint(ctx: agents.JobContext):
         
         # Customize instructions based on room name
         room_name = ctx.room.name
-        if "newport" in room_name.lower():
+        logging.info(f"Room name: {room_name}")
+        if "devin" in room_name.lower():
             # Ashley's personality instructions (Devin's personal assistant for LinkedIn outreach)
             # OLD PROMPT (commented out):
             # instructions = (
@@ -168,6 +169,7 @@ async def entrypoint(ctx: agents.JobContext):
                 turn_detection="vad",  # Use the simpler, faster, and stable VAD-based turn detection
                 user_away_timeout=60,  # Wait for 60 seconds of silence before ending
             )
+        logging.info(f"Using instructions: {instructions[:200]}...")
         agent = BusinessAgent(instructions=instructions)
 
         @session.on("user_state_changed")
