@@ -223,7 +223,9 @@ async def entrypoint(ctx: agents.JobContext):
             logging.info("Agent running as newport-rentals")
             logging.info("Using Regina's personality for Newport Beach Vacation Properties")
             if tts is not None:
+                logging.info("About to speak greeting...")
                 await session.say(f"Hi, is this the guest calling about your Newport Beach reservation?", allow_interruptions=True)
+                logging.info("Greeting spoken successfully")
             else:
                 logging.error("Cannot speak - TTS is not available")
         elif "devin" in room_name.lower():
