@@ -203,7 +203,14 @@ async def entrypoint(ctx: agents.JobContext):
         room_name = ctx.room.name
         
         # Log which agent identity we're using
-        if "devin" in room_name.lower():
+        if "newport" in room_name.lower():
+            logging.info("Agent running as newport-rentals")
+            logging.info("Using Regina's personality for Newport Beach Vacation Properties")
+            if tts is not None:
+                await session.say(f"Hi, is this the guest calling about your Newport Beach reservation?", allow_interruptions=True)
+            else:
+                logging.error("Cannot speak - TTS is not available")
+        elif "devin" in room_name.lower():
             logging.info("Agent running as devin-assistant")
             logging.info("Using Ashley's personality for this session")
             if tts is not None:
@@ -236,7 +243,7 @@ async def request_fnc(req: JobRequest):
     try:
         # Accept ALL jobs for now to debug  
         logging.info(f"✅ ACCEPTING job {req.job.id} for room {req.job.room}")
-        await req.accept(identity="devin-assistant")
+        await req.accept(identity="newport-rentals")
         logging.info(f"🎉 SUCCESSFULLY ACCEPTED job {req.job.id}")
     except Exception as e:
         logging.error(f"❌ FAILED to accept job {req.job.id}: {e}")
@@ -294,14 +301,14 @@ if __name__ == "__main__":
     
     # Run the agent (same for both local and Render)
     logging.info("About to start agents.cli.run_app...")
-    logging.info(f"Agent will register with name: devin-assistant")
+    logging.info(f"Agent will register with name: newport-rentals")
     try:
         agents.cli.run_app(
             agents.WorkerOptions(
                 request_fnc=request_fnc,
                 entrypoint_fnc=entrypoint,
                 prewarm_fnc=prewarm,
-                agent_name="devin-assistant"
+                agent_name="newport-rentals"
             )
         )
         logging.info("agents.cli.run_app completed successfully")
