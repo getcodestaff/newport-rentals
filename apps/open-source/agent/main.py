@@ -215,18 +215,31 @@ async def entrypoint(ctx: agents.JobContext):
         await session.start(room=ctx.room, agent=agent)
         ctx.room.local_participant.register_rpc_method("submit_lead_form", submit_lead_form_handler)
         
-        # Log which agent identity we're using based on room name
+        # Start talking immediately without waiting for user audio track
         room_name = ctx.room.name
         
+        # Log which agent identity we're using
         if "newport" in room_name.lower():
             logging.info("Agent running as newport-rentals")
             logging.info("Using Regina's personality for Newport Beach Vacation Properties")
+            if tts is not None:
+                await session.say(f"Hi, is this the guest calling about your Newport Beach reservation?", allow_interruptions=True)
+            else:
+                logging.error("Cannot speak - TTS is not available")
         elif "devin" in room_name.lower():
             logging.info("Agent running as devin-assistant")
             logging.info("Using Ashley's personality for this session")
+            if tts is not None:
+                await session.say(f"Hi is this Peter?", allow_interruptions=True)
+            else:
+                logging.error("Cannot speak - TTS is not available")
         else:
             logging.info("Agent running as voice-sell-agent")
             logging.info("Using Voice Sell AI personality for this session")
+            if tts is not None:
+                await session.say(f"Thank you for calling Voice Sell AI. How can I help you today?", allow_interruptions=True)
+            else:
+                logging.error("Cannot speak - TTS is not available")
 
         await session_ended.wait()
         await session.aclose()
