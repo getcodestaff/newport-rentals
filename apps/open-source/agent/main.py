@@ -121,9 +121,8 @@ async def entrypoint(ctx: agents.JobContext):
         stt = deepgram.STT()
         logging.info("✅ STT (Deepgram) initialized successfully")
         
-        # Use OpenAI GPT-4 for reliable performance
-        from livekit.plugins import openai
-        llm = openai.LLM(model="gpt-4o")
+        # Use Groq for reliable performance with working API key
+        llm = groq.LLM(model="llama-3.3-70b-versatile")
         
         # Use the pre-warmed VAD model from userdata
         vad = ctx.proc.userdata["vad"]
