@@ -157,6 +157,8 @@ async def entrypoint(ctx: agents.JobContext):
             asyncio.create_task(_process_submission())
             return "SUCCESS"
 
+        await session.start(room=ctx.room, agent=agent)
+        
         @session.on("user_speech_committed")
         def on_user_speech_committed(ev):
             logging.info(f"User said: {ev.user_transcript}")
@@ -164,8 +166,6 @@ async def entrypoint(ctx: agents.JobContext):
         @session.on("agent_speech_committed") 
         def on_agent_speech_committed(ev):
             logging.info(f"Agent said: {ev.agent_transcript}")
-            
-        await session.start(room=ctx.room, agent=agent)
         ctx.room.local_participant.register_rpc_method("submit_lead_form", submit_lead_form_handler)
         
         # Start talking immediately without waiting for user audio track
