@@ -295,7 +295,7 @@ if __name__ == "__main__":
         # This is called during Docker build to pre-download models
         exit(0)
     
-    logging.info("Starting Devin Assistant (LinkedIn Outreach) Agent Worker...")
+    logging.info("Starting Newport Beach Agent Worker...")
     
     # Debug: Log environment variables for LiveKit connection
     livekit_url = os.getenv("LIVEKIT_URL")
