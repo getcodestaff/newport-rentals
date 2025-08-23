@@ -232,12 +232,17 @@ async def request_fnc(req: JobRequest):
     logging.info("="*50)
     
     try:
-        # Accept ALL jobs for now to debug  
-        logging.info(f"✅ ACCEPTING job {req.job.id} for room {req.job.room}")
-        await req.accept(identity="newport-rentals")
-        logging.info(f"🎉 SUCCESSFULLY ACCEPTED job {req.job.id}")
+        # Only accept non-outbound jobs (let ashley-outbound handle outbound rooms)
+        room_name = req.job.room
+        if "outbound" in room_name.lower():
+            logging.info(f"🚫 REJECTING outbound job {req.job.id} for room {req.job.room} (letting ashley-outbound handle it)")
+            await req.reject()
+        else:
+            logging.info(f"✅ ACCEPTING job {req.job.id} for room {req.job.room}")
+            await req.accept(identity="newport-rentals")
+            logging.info(f"🎉 SUCCESSFULLY ACCEPTED job {req.job.id}")
     except Exception as e:
-        logging.error(f"❌ FAILED to accept job {req.job.id}: {e}")
+        logging.error(f"❌ FAILED to process job {req.job.id}: {e}")
         raise
 
 def prewarm(proc: agents.JobProcess):
