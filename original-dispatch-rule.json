@@ -3,12 +3,12 @@
     "name": "Devin Assistant SIP",
     "rule": {
       "dispatchRuleIndividual": {
-        "roomPrefix": "devin-linkedin_"
+        "roomPrefix": "newport_"
       }
     },
     "roomConfig": {
       "agents": [{
-        "agentName": "devin-assistant"
+        "agentName": "newport-rentals"
       }]
     }
   }

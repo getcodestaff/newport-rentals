@@ -3,7 +3,7 @@
     "name": "Devin Auto Dispatch",
     "rule": {
       "dispatchRuleIndividual": {
-        "roomPrefix": "devin-linkedin_"
+        "roomPrefix": "newport_"
       }
     }
   }

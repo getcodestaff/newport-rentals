@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Agent
 metadata:
-  name: devin-assistant
+  name: newport-rentals
 spec:
-  displayName: "Devin Assistant - Ashley (LinkedIn Outreach)"
-  description: "Ashley, Devin's personal assistant for LinkedIn connection outreach"
+  displayName: "Newport Beach Vacation Properties - Regina"
+  description: "Regina, guest experience concierge for Newport Beach vacation rentals"
   entry: main.py
   requirements: requirements.txt
   env:
