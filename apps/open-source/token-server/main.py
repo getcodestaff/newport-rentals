@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from livekit import api
-from livekit.api import LiveKitAPI, CreateSipParticipantRequest
+from livekit.api import LiveKitAPI
 from dotenv import load_dotenv
 
 # Load environment variables from the .env file in the current directory
@@ -84,7 +84,7 @@ async def make_call(request: MakeCallRequest):
             raise HTTPException(status_code=500, detail="SIP_TRUNK_ID not configured. Please set up outbound SIP trunk first.")
         
         # Create SIP participant (make the outbound call)
-        sip_request = CreateSipParticipantRequest(
+        sip_request = api.CreateSipParticipantRequest(
             sip_trunk_id=SIP_TRUNK_ID,
             sip_call_to=request.phone_number,
             room_name=room_name,
