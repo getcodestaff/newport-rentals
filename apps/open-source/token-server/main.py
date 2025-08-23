@@ -87,17 +87,19 @@ async def make_call(request: MakeCallRequest):
             print(f"Room creation error: {room_error}")
             # Room might already exist, continue
         
-        # Create SIP participant (make the outbound call)
-        sip_request = api.CreateSipParticipantRequest(
-            trunk_id=SIP_TRUNK_ID,
-            call_to=request.phone_number,
+        # Create SIP participant using the correct LiveKit API
+        from livekit.protocol import sip_pb2
+        
+        create_request = sip_pb2.CreateSipParticipantRequest(
+            sip_trunk_id=SIP_TRUNK_ID,
+            sip_call_to=request.phone_number,
             room_name=room_name,
             participant_identity=f"newport_caller_{uuid.uuid4().hex[:8]}",
-            participant_name=request.caller_name,
+            participant_name=request.caller_name
         )
         
         print(f"Making call to {request.phone_number} using trunk {SIP_TRUNK_ID} in room {room_name}")
-        sip_info = await lk_api.sip.create_sip_participant(sip_request)
+        sip_info = await lk_api.sip.create_sip_participant(create_request)
         print(f"Call initiated successfully: {sip_info}")
         
         return {
