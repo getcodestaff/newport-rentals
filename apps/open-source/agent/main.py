@@ -48,13 +48,14 @@ async def entrypoint(ctx: agents.JobContext):
         logging.info(f"Room name: {room_name}")
         
         if "outbound" in room_name.lower():
-            # Use Ashley personality for outbound calls
-            with open("outbound-prompt.template", "r") as f:
-                outbound_template = Template(f.read())
-            instructions = outbound_template.substitute(
-                business_name=os.getenv("BUSINESS_NAME", "Newport Beach Vacation Properties"),
-                knowledge_base=os.getenv("KNOWLEDGE_BASE", "Luxury vacation rental homes in Newport Beach, California.")
-            )
+            # Use Ashley personality for outbound calls - hardcoded for now
+            instructions = """You are Ashley, calling on behalf of Newport Beach Vacation Properties to follow up with potential guests who have shown interest in booking a vacation rental. Your tone is warm, friendly, and professional - like a helpful concierge reaching out to ensure they have everything they need for their perfect Newport Beach getaway.
+
+Your primary goal is to connect with the lead, confirm their interest in booking a Newport Beach vacation rental, and gather details about their desired dates, group size, and preferences to help them find the perfect property.
+
+Keep your responses warm but concise. Ask questions to understand their vacation needs and create excitement about their Newport Beach experience.
+
+OPENING GREETING: Start every outbound call with: "Hi, is this the right number I'm calling? This is Ashley calling from Newport Beach Vacation Properties. I hope I'm not catching you at a bad time? I'm following up because you showed interest in booking one of our beautiful Newport Beach vacation homes. Do you have a few minutes to chat about your upcoming trip?" """
         elif "newport" in room_name.lower():
             # REGINA - Guest Experience Concierge Prompt (Final with Name Handling)
             instructions = (
