@@ -50,7 +50,7 @@ async def entrypoint(ctx: agents.JobContext):
         # Customize instructions based on room name
         room_name = ctx.room.name
         logging.info(f"Room name: {room_name}")
-        if "newport" in room_name.lower():
+        if "newport" in room_name.lower() or "outbound" in room_name.lower():
             # NEW PROMPT - Newport Beach Vacation Properties Regina:
             instructions = (
                 f"Role: You are 'Regina,' a friendly and welcoming Guest Experience Concierge with Newport Beach Vacation Properties. You are the guest's first personal touchpoint after booking. "
@@ -161,7 +161,7 @@ async def entrypoint(ctx: agents.JobContext):
         ctx.room.local_participant.register_rpc_method("submit_lead_form", submit_lead_form_handler)
         
         # Log which agent identity we're using
-        if "newport" in room_name.lower():
+        if "newport" in room_name.lower() or "outbound" in room_name.lower():
             logging.info("Agent running as newport-rentals")
             logging.info("Using Regina's personality for Newport Beach Vacation Properties")
         else:

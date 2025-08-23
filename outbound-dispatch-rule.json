@@ -1,0 +1,15 @@
+{
+  "dispatch_rule": {
+    "name": "Newport Outbound Calls",
+    "rule": {
+      "dispatchRuleIndividual": {
+        "roomPrefix": "newport_outbound_"
+      }
+    },
+    "roomConfig": {
+      "agents": [{
+        "agentName": "newport-rentals"
+      }]
+    }
+  }
+}
