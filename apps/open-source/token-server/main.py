@@ -38,7 +38,7 @@ class MakeCallRequest(BaseModel):
     caller_name: str = "Newport Rentals"
 
 class CreateTrunkRequest(BaseModel):
-    sip_address: str  # e.g., "sip.telnyx.com"
+    sip_address: str  # e.g., "sip.twilio.com"
     username: str
     password: str
     phone_numbers: list[str] = ["*"]  # Allow calls from any number
@@ -121,7 +121,7 @@ async def make_call(request: MakeCallRequest):
 
 @app.post("/api/create-trunk") 
 async def create_sip_trunk(request: CreateTrunkRequest):
-    """Create outbound SIP trunk named 'newport-trunk'"""
+    """Create outbound SIP trunk named 'newport-trunk' for Twilio"""
     if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET or not LIVEKIT_URL:
         raise HTTPException(status_code=500, detail="LiveKit credentials not configured")
     
