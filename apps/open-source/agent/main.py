@@ -43,14 +43,19 @@ async def entrypoint(ctx: agents.JobContext):
         session_ended.set()
 
     try:
-        # 1. Build the instructions from the local prompt.template and .env file
-        with open("prompt.template", "r") as f:
-            prompt_template = Template(f.read())
-        
-        # Customize instructions based on room name
+        # Build instructions based on room type (inbound vs outbound)
         room_name = ctx.room.name
         logging.info(f"Room name: {room_name}")
-        if "newport" in room_name.lower() or "outbound" in room_name.lower():
+        
+        if "outbound" in room_name.lower():
+            # Use Ashley personality for outbound calls
+            with open("outbound-prompt.template", "r") as f:
+                outbound_template = Template(f.read())
+            instructions = outbound_template.substitute(
+                business_name=os.getenv("BUSINESS_NAME", "Newport Beach Vacation Properties"),
+                knowledge_base=os.getenv("KNOWLEDGE_BASE", "Luxury vacation rental homes in Newport Beach, California.")
+            )
+        elif "newport" in room_name.lower():
             # NEW PROMPT - Newport Beach Vacation Properties Regina:
             instructions = (
                 f"Role: You are Regina with Newport Beach Vacation Properties. You're calling to confirm a reservation for one of our vacation homes. The caller has already confirmed it's a good time to talk. "
@@ -208,9 +213,19 @@ async def entrypoint(ctx: agents.JobContext):
         await session.start(room=ctx.room, agent=agent)
         ctx.room.local_participant.register_rpc_method("submit_lead_form", submit_lead_form_handler)
         
-        # Log which agent identity we're using
-        if "newport" in room_name.lower() or "outbound" in room_name.lower():
-            logging.info("Agent running as newport-rentals")
+        # Log which personality we're using and handle immediate greeting for outbound
+        if "outbound" in room_name.lower():
+            logging.info("Agent running as Ashley (outbound)")
+            logging.info("Using Ashley's personality for vacation rental lead follow-up")
+            # IMMEDIATE OUTBOUND GREETING - Start talking right away
+            logging.info("Starting outbound call with proactive greeting")
+            await asyncio.sleep(3)  # Wait for connection to stabilize
+            await session.say(
+                "Hi, is this the right number I'm calling? This is Ashley calling from Newport Beach Vacation Properties. I hope I'm not catching you at a bad time? I'm following up because you showed interest in booking one of our beautiful Newport Beach vacation homes. Do you have a few minutes to chat about your upcoming trip?",
+                allow_interruptions=True
+            )
+        elif "newport" in room_name.lower():
+            logging.info("Agent running as Regina (inbound)")
             logging.info("Using Regina's personality for Newport Beach Vacation Properties")
         else:
             logging.info("Agent running as voice-sell-agent")
@@ -232,17 +247,12 @@ async def request_fnc(req: JobRequest):
     logging.info("="*50)
     
     try:
-        # Only accept non-outbound jobs (let ashley-outbound handle outbound rooms)
-        room_name = req.job.room
-        if "outbound" in room_name.lower():
-            logging.info(f"🚫 REJECTING outbound job {req.job.id} for room {req.job.room} (letting ashley-outbound handle it)")
-            await req.reject()
-        else:
-            logging.info(f"✅ ACCEPTING job {req.job.id} for room {req.job.room}")
-            await req.accept(identity="newport-rentals")
-            logging.info(f"🎉 SUCCESSFULLY ACCEPTED job {req.job.id}")
+        # Accept ALL jobs - handle both inbound and outbound in one agent
+        logging.info(f"✅ ACCEPTING job {req.job.id} for room {req.job.room}")
+        await req.accept(identity="newport-rentals")
+        logging.info(f"🎉 SUCCESSFULLY ACCEPTED job {req.job.id}")
     except Exception as e:
-        logging.error(f"❌ FAILED to process job {req.job.id}: {e}")
+        logging.error(f"❌ FAILED to accept job {req.job.id}: {e}")
         raise
 
 def prewarm(proc: agents.JobProcess):
