@@ -73,15 +73,19 @@ async def make_call(request: MakeCallRequest):
     room_name = f"newport_outbound_{uuid.uuid4().hex[:8]}"
     
     try:
+        # Validate SIP trunk is configured
+        if not SIP_TRUNK_ID:
+            raise HTTPException(status_code=500, detail="SIP_TRUNK_ID not configured. Please set up outbound SIP trunk first.")
+        
         # Initialize LiveKit API client
         lk_api = LiveKitAPI(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
         
         # Create the room first
-        await lk_api.room.create_room(api.CreateRoomRequest(name=room_name))
-        
-        # Validate SIP trunk is configured
-        if not SIP_TRUNK_ID:
-            raise HTTPException(status_code=500, detail="SIP_TRUNK_ID not configured. Please set up outbound SIP trunk first.")
+        try:
+            await lk_api.room.create_room(api.CreateRoomRequest(name=room_name))
+        except Exception as room_error:
+            print(f"Room creation error: {room_error}")
+            # Room might already exist, continue
         
         # Create SIP participant (make the outbound call)
         sip_request = api.CreateSipParticipantRequest(
@@ -90,11 +94,11 @@ async def make_call(request: MakeCallRequest):
             room_name=room_name,
             participant_identity=f"newport_caller_{uuid.uuid4().hex[:8]}",
             participant_name=request.caller_name,
-            # Optional: Use region pinning for better call quality
-            # destination_country="US"  # Uncomment if needed
         )
         
+        print(f"Making call to {request.phone_number} using trunk {SIP_TRUNK_ID} in room {room_name}")
         sip_info = await lk_api.sip.create_sip_participant(sip_request)
+        print(f"Call initiated successfully: {sip_info}")
         
         return {
             "success": True,
@@ -105,6 +109,10 @@ async def make_call(request: MakeCallRequest):
         }
         
     except Exception as e:
+        print(f"Call failed with error: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to initiate call: {str(e)}")
 
 @app.post("/api/create-trunk") 
@@ -137,6 +145,20 @@ async def create_sip_trunk(request: CreateTrunkRequest):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create SIP trunk: {str(e)}")
+
+@app.get("/api/debug")
+async def debug_config():
+    """Debug endpoint to check configuration"""
+    return {
+        "environment_vars": {
+            "LIVEKIT_URL": LIVEKIT_URL,
+            "LIVEKIT_API_KEY": "***" if LIVEKIT_API_KEY else None,
+            "LIVEKIT_API_SECRET": "***" if LIVEKIT_API_SECRET else None,
+            "SIP_TRUNK_ID": SIP_TRUNK_ID
+        },
+        "expected_trunk": "ST_eWihSQEyGTF5",
+        "room_prefix": "newport_outbound_"
+    }
 
 @app.get("/api/status")
 async def get_status():
