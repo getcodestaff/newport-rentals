@@ -49,7 +49,7 @@ async def entrypoint(ctx: agents.JobContext):
         
         if "outbound" in room_name.lower():
             # Use Regina personality for outbound calls from template
-            with open("outbound-prompt.template", "r") as f:
+            with open("devin-linkedin-prompt.template", "r") as f:
                 instructions = f.read()
         elif "newport" in room_name.lower():
             # REGINA - Guest Experience Concierge Prompt (Final with Name Handling)
