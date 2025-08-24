@@ -207,7 +207,7 @@ async def entrypoint(ctx: agents.JobContext):
             logging.info("Starting outbound call with proactive greeting")
             await asyncio.sleep(3)  # Wait for connection to stabilize
             await session.say(
-                "Hi, is this the right number I'm calling? This is Ashley calling from Newport Beach Vacation Properties. I hope I'm not catching you at a bad time? I'm following up because you showed interest in booking one of our beautiful Newport Beach vacation homes. Do you have a few minutes to chat about your upcoming trip?",
+                "Is this Wes?",
                 allow_interruptions=True
             )
         elif "newport" in room_name.lower():
