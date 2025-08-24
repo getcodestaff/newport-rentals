@@ -17,19 +17,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database connection setup
-postgres_url = os.getenv("POSTGRES_URL", "postgres://postgres.xjjvdxomublvmzqaopbz:w0m3S3jOh2o6OqRn@aws-1-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require&supa=base-pooler.x")
+# Database connection setup using individual environment variables
+POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "w0m3S3jOh2o6OqRn")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "db.xjjvdxomublvmzqaopbz.supabase.co")
+POSTGRES_DATABASE = os.getenv("POSTGRES_DATABASE", "postgres")
 
-# Convert to asyncpg format - handle both postgres:// and postgresql:// prefixes
-if postgres_url.startswith("postgres://"):
-    ASYNC_DATABASE_URL = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
-elif postgres_url.startswith("postgresql://"):
-    ASYNC_DATABASE_URL = postgres_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-else:
-    ASYNC_DATABASE_URL = postgres_url
-
-# Fix SSL parameter for asyncpg
-ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace("sslmode=require", "ssl=require")
+# Build async connection string
+ASYNC_DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:5432/{POSTGRES_DATABASE}?ssl=require"
 
 # Create async engine
 engine = create_async_engine(ASYNC_DATABASE_URL)
