@@ -23,9 +23,9 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "w0m3S3jOh2o6OqRn")
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "db.xjjvdxomublvmzqaopbz.supabase.co")
 POSTGRES_DATABASE = os.getenv("POSTGRES_DATABASE", "postgres")
 
-# Build async connection string
-POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
-ASYNC_DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DATABASE}"
+# Build async connection string with connection pooling disabled
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432") 
+ASYNC_DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DATABASE}?ssl=prefer&connect_timeout=10"
 
 # Create async engine
 engine = create_async_engine(ASYNC_DATABASE_URL)

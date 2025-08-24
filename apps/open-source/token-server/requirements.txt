@@ -2,8 +2,5 @@ fastapi
 uvicorn
 python-dotenv
 livekit-api
-sqlalchemy
-asyncpg
-psycopg2-binary
-alembic
+supabase
 pydantic[email]

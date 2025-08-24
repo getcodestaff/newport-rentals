@@ -1,7 +1,7 @@
 import os
 import uuid
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -11,9 +11,10 @@ from livekit.protocol.sip import CreateSIPParticipantRequest
 from dotenv import load_dotenv
 import datetime
 from fastapi import WebSocket, WebSocketDisconnect
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, insert
-from models import businesses, leads, prospects, call_logs, LeadCreate, Lead, Business, ProspectCreate, Prospect, CallLogCreate, CallLog, get_db
+from supabase_client import get_supabase_client
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 import logging
 
 # Load environment variables from the .env file in the current directory
@@ -42,6 +43,22 @@ class TokenRequest(BaseModel):
 class MakeCallRequest(BaseModel):
     phone_number: str
     caller_name: str = "Newport Rentals"
+
+# Database Models
+class ProspectCreate(BaseModel):
+    business_id: str
+    name: Optional[str] = None
+    phone_number: str
+    email: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = "new"
+
+class LeadCreate(BaseModel):
+    business_id: str
+    visitor_name: Optional[str] = None
+    visitor_email: Optional[str] = None
+    visitor_phone: Optional[str] = None
+    inquiry: str
 
 class CreateTrunkRequest(BaseModel):
     sip_address: str  # e.g., "sip.twilio.com"
@@ -72,7 +89,7 @@ async def get_token(request: TokenRequest):
     return {"token": token}
 
 @app.post("/api/make-call")
-async def make_call(request: MakeCallRequest, database: AsyncSession = Depends(get_db)):
+async def make_call(request: MakeCallRequest):
     if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET or not LIVEKIT_URL:
         raise HTTPException(status_code=500, detail="LiveKit credentials not configured")
     
@@ -121,40 +138,38 @@ async def make_call(request: MakeCallRequest, database: AsyncSession = Depends(g
         sip_info = await lk_api.sip.create_sip_participant(sip_request)
         print(f"Call initiated successfully: {sip_info}")
         
-        # Log the call to database
+        # Log the call to database using Supabase
         try:
-            # Check if this phone number is a known prospect
-            prospect_query = select(prospects).where(prospects.c.phone_number == request.phone_number).where(prospects.c.business_id == "newport-beach")
-            prospect_result = await database.execute(prospect_query)
-            prospect = prospect_result.first()
-            
-            prospect_id = prospect.id if prospect else None
-            
-            # Create call log
-            call_log = CallLogCreate(
-                prospect_id=prospect_id,
-                business_id="newport-beach",
-                phone_number=request.phone_number,
-                room_name=room_name,
-                call_status="initiated"
-            )
-            
-            log_query = insert(call_logs).values(**call_log.model_dump())
-            log_result = await database.execute(log_query)
-            await database.commit()
-            
-            # Update prospect call count and last called time if it exists
-            if prospect:
-                from sqlalchemy import update
-                update_query = update(prospects).where(prospects.c.id == prospect.id).values(
-                    last_called=datetime.datetime.utcnow(),
-                    call_count=prospects.c.call_count + 1,
-                    status="contacted"
-                )
-                await database.execute(update_query)
-                await database.commit()
-            
-            logging.info(f"Call logged with ID: {log_result.inserted_primary_key[0]}")
+            supabase = get_supabase_client()
+            if supabase:
+                # Check if this phone number is a known prospect
+                prospect_result = supabase.table('prospects').select('*').eq('phone_number', request.phone_number).eq('business_id', 'newport-beach').execute()
+                prospect = prospect_result.data[0] if prospect_result.data else None
+                
+                prospect_id = prospect['id'] if prospect else None
+                
+                # Create call log
+                call_log_data = {
+                    "prospect_id": prospect_id,
+                    "business_id": "newport-beach",
+                    "phone_number": request.phone_number,
+                    "room_name": room_name,
+                    "call_status": "initiated"
+                }
+                
+                log_result = supabase.table('call_logs').insert(call_log_data).execute()
+                
+                # Update prospect call count and last called time if it exists
+                if prospect:
+                    current_count = prospect.get('call_count', 0)
+                    update_data = {
+                        "last_called": datetime.utcnow().isoformat(),
+                        "call_count": current_count + 1,
+                        "status": "contacted"
+                    }
+                    supabase.table('prospects').update(update_data).eq('id', prospect['id']).execute()
+                
+                logging.info(f"Call logged successfully")
             
         except Exception as log_error:
             logging.error(f"Failed to log call: {log_error}")
@@ -456,22 +471,26 @@ async def get_call_logs(
 async def test_database_connection():
     """Simple test to check if database is working"""
     try:
-        from models import get_db, prospects
-        from sqlalchemy import select
-        
-        # Test database connection
-        async for database in get_db():
-            query = select(prospects).limit(1)
-            result = await database.execute(query)
-            test_prospect = result.first()
-            
+        supabase = get_supabase_client()
+        if not supabase:
             return {
-                "success": True,
-                "database_connected": True,
-                "sample_prospect": dict(test_prospect._mapping) if test_prospect else None,
-                "message": "Database connection working!"
+                "success": False,
+                "database_connected": False,
+                "error": "Supabase client not initialized",
+                "message": "Database connection failed"
             }
-            
+        
+        # Test database connection by querying prospects
+        result = supabase.table('prospects').select('*').limit(1).execute()
+        
+        return {
+            "success": True,
+            "database_connected": True,
+            "sample_prospect": result.data[0] if result.data else None,
+            "total_prospects": len(result.data) if result.data else 0,
+            "message": "Supabase connection working!"
+        }
+        
     except Exception as e:
         return {
             "success": False,
