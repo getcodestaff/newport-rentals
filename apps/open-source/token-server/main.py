@@ -452,6 +452,34 @@ async def get_call_logs(
         logging.error(f"Error fetching call logs: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch call logs: {str(e)}")
 
+@app.get("/api/test-db")
+async def test_database_connection():
+    """Simple test to check if database is working"""
+    try:
+        from models import get_db, prospects
+        from sqlalchemy import select
+        
+        # Test database connection
+        async for database in get_db():
+            query = select(prospects).limit(1)
+            result = await database.execute(query)
+            test_prospect = result.first()
+            
+            return {
+                "success": True,
+                "database_connected": True,
+                "sample_prospect": dict(test_prospect._mapping) if test_prospect else None,
+                "message": "Database connection working!"
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "database_connected": False,
+            "error": str(e),
+            "message": "Database connection failed"
+        }
+
 @app.get("/api/debug")
 async def debug_config():
     """Debug endpoint to check configuration"""
