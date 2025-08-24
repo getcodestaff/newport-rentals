@@ -91,6 +91,14 @@ async def make_call(request: MakeCallRequest):
     if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET or not LIVEKIT_URL:
         raise HTTPException(status_code=500, detail="LiveKit credentials not configured")
     
+    # Format phone number properly - add +1 if missing
+    phone_number = request.phone_number.strip()
+    if not phone_number.startswith('+'):
+        if phone_number.startswith('1'):
+            phone_number = '+' + phone_number
+        else:
+            phone_number = '+1' + phone_number
+    
     # Create unique room for this outbound call
     room_name = f"newport_outbound_{uuid.uuid4().hex[:8]}"
     
@@ -113,7 +121,7 @@ async def make_call(request: MakeCallRequest):
         dispatch_request = api.CreateAgentDispatchRequest(
             agent_name="newport-rentals",
             room=room_name,
-            metadata=f'{{"phone_number": "{request.phone_number}", "caller_name": "{request.caller_name}"}}'
+            metadata=f'{{"phone_number": "{phone_number}", "caller_name": "{request.caller_name}"}}'
         )
         
         print(f"Creating agent dispatch for newport-rentals in room {room_name}")
@@ -125,14 +133,14 @@ async def make_call(request: MakeCallRequest):
         
         sip_request = CreateSIPParticipantRequest(
             sip_trunk_id=SIP_TRUNK_ID,
-            sip_call_to=request.phone_number,
+            sip_call_to=phone_number,
             room_name=room_name,
             participant_identity=participant_identity,
             participant_name=request.caller_name,
             wait_until_answered=True
         )
         
-        print(f"Making call to {request.phone_number} using trunk {SIP_TRUNK_ID} in room {room_name}")
+        print(f"Making call to {phone_number} using trunk {SIP_TRUNK_ID} in room {room_name}")
         sip_info = await lk_api.sip.create_sip_participant(sip_request)
         print(f"Call initiated successfully: {sip_info}")
         
@@ -141,7 +149,7 @@ async def make_call(request: MakeCallRequest):
             supabase = get_supabase_client()
             if supabase:
                 # Check if this phone number is a known prospect
-                prospect_result = supabase.table('prospects').select('*').eq('phone_number', request.phone_number).eq('business_id', 'newport-beach').execute()
+                prospect_result = supabase.table('prospects').select('*').eq('phone_number', phone_number).eq('business_id', 'newport-beach').execute()
                 prospect = prospect_result.data[0] if prospect_result.data else None
                 
                 prospect_id = prospect['id'] if prospect else None
@@ -150,7 +158,7 @@ async def make_call(request: MakeCallRequest):
                 call_log_data = {
                     "prospect_id": prospect_id,
                     "business_id": "newport-beach",
-                    "phone_number": request.phone_number,
+                    "phone_number": phone_number,
                     "room_name": room_name,
                     "call_status": "initiated"
                 }
@@ -177,8 +185,8 @@ async def make_call(request: MakeCallRequest):
             "success": True,
             "room_name": room_name,
             "call_id": sip_info.participant_identity,
-            "phone_number": request.phone_number,
-            "message": f"Calling {request.phone_number}...",
+            "phone_number": phone_number,
+            "message": f"Calling {phone_number}...",
             "prospect_id": prospect_id if prospect else None
         }
         
