@@ -1,7 +1,11 @@
 import os
 import uuid
 import uvicorn
-from fastapi import FastAPI, HTTPException
+import asyncio
+import logging
+import datetime
+from typing import Optional
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -9,13 +13,7 @@ from livekit import api
 from livekit.api import LiveKitAPI
 from livekit.protocol.sip import CreateSIPParticipantRequest
 from dotenv import load_dotenv
-import datetime
-from fastapi import WebSocket, WebSocketDisconnect
 from supabase_client import get_supabase_client
-from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime
-import logging
 
 # Load environment variables from the .env file in the current directory
 load_dotenv()
@@ -225,62 +223,56 @@ async def create_sip_trunk(request: CreateTrunkRequest):
 # Newport Beach Lead Management Endpoints
 @app.post("/api/newport-beach/leads")
 async def create_newport_lead(
-    lead_data: dict,
-    database: AsyncSession = Depends(get_db)
+    lead_data: dict
 ):
     """Create a new lead for Newport Beach Rentals - Public endpoint for dialer"""
     try:
-        # Validate and clean the lead data
-        lead_create = LeadCreate(
-            business_id="newport-beach",
-            visitor_name=lead_data.get("visitor_name"),
-            visitor_email=lead_data.get("visitor_email"),
-            visitor_phone=lead_data.get("visitor_phone"),
-            inquiry=lead_data.get("inquiry", "Lead from Newport Beach dialer")
-        )
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+            
+        # Prepare lead data
+        lead_data_clean = {
+            "business_id": "newport-beach",
+            "visitor_name": lead_data.get("visitor_name"),
+            "visitor_email": lead_data.get("visitor_email"),
+            "visitor_phone": lead_data.get("visitor_phone"),
+            "inquiry": lead_data.get("inquiry", "Lead from Newport Beach dialer"),
+            "status": "new"
+        }
         
-        logging.info(f"Creating Newport Beach lead: {lead_create.model_dump()}")
+        logging.info(f"Creating Newport Beach lead: {lead_data_clean}")
         
         # Insert into database
-        query = insert(leads).values(**lead_create.model_dump())
-        result = await database.execute(query)
-        await database.commit()
+        result = supabase.table('leads').insert(lead_data_clean).execute()
         
-        logging.info(f"Successfully created lead with ID: {result.inserted_primary_key[0]}")
-        
-        # Return the created lead
-        select_query = select(leads).where(leads.c.id == result.inserted_primary_key[0])
-        new_lead_record = await database.execute(select_query)
-        db_lead = new_lead_record.first()
-        
-        if not db_lead:
-            raise HTTPException(status_code=500, detail="Could not retrieve newly created lead.")
-        
-        return {"success": True, "lead": dict(db_lead._mapping)}
+        if result.data:
+            logging.info(f"Successfully created lead")
+            return {"success": True, "lead": result.data[0]}
+        else:
+            raise HTTPException(status_code=500, detail="Could not create lead")
         
     except Exception as e:
         logging.error(f"Error creating Newport Beach lead: {e}", exc_info=True)
-        await database.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create lead: {str(e)}")
 
 @app.get("/api/newport-beach/leads")
 async def get_newport_leads(
     limit: int = 50,
-    offset: int = 0,
-    database: AsyncSession = Depends(get_db)
+    offset: int = 0
 ):
     """Get all leads for Newport Beach Rentals"""
     try:
-        query = select(leads).where(leads.c.business_id == "newport-beach").limit(limit).offset(offset).order_by(leads.c.captured_at.desc())
-        result = await database.execute(query)
-        lead_records = result.fetchall()
-        
-        leads_list = [dict(row._mapping) for row in lead_records]
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+            
+        result = supabase.table('leads').select('*').eq('business_id', 'newport-beach').range(offset, offset + limit - 1).order('captured_at', desc=True).execute()
         
         return {
             "success": True,
-            "leads": leads_list,
-            "count": len(leads_list),
+            "leads": result.data,
+            "count": len(result.data),
             "business_id": "newport-beach"
         }
         
@@ -291,18 +283,19 @@ async def get_newport_leads(
 @app.get("/api/newport-beach/leads/{lead_id}")
 async def get_newport_lead(
     lead_id: int,
-    database: AsyncSession = Depends(get_db)
 ):
     """Get specific lead by ID"""
     try:
-        query = select(leads).where(leads.c.id == lead_id).where(leads.c.business_id == "newport-beach")
-        result = await database.execute(query)
-        lead_record = result.first()
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+            
+        result = supabase.table('leads').select('*').eq('id', lead_id).eq('business_id', 'newport-beach').execute()
         
-        if not lead_record:
+        if not result.data:
             raise HTTPException(status_code=404, detail="Lead not found")
         
-        return {"success": True, "lead": dict(lead_record._mapping)}
+        return {"success": True, "lead": result.data[0]}
         
     except HTTPException:
         raise
@@ -314,69 +307,64 @@ async def get_newport_lead(
 async def update_newport_lead(
     lead_id: int,
     update_data: dict,
-    database: AsyncSession = Depends(get_db)
 ):
     """Update lead status or information"""
     try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+            
         # Check if lead exists
-        select_query = select(leads).where(leads.c.id == lead_id).where(leads.c.business_id == "newport-beach")
-        result = await database.execute(select_query)
-        existing_lead = result.first()
+        existing_result = supabase.table('leads').select('*').eq('id', lead_id).eq('business_id', 'newport-beach').execute()
         
-        if not existing_lead:
+        if not existing_result.data:
             raise HTTPException(status_code=404, detail="Lead not found")
         
         # Update the lead
-        from sqlalchemy import update
-        update_query = update(leads).where(leads.c.id == lead_id).values(**update_data)
-        await database.execute(update_query)
-        await database.commit()
+        result = supabase.table('leads').update(update_data).eq('id', lead_id).execute()
         
-        # Return updated lead
-        updated_result = await database.execute(select_query)
-        updated_lead = updated_result.first()
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to update lead")
         
-        return {"success": True, "lead": dict(updated_lead._mapping)}
+        return {"success": True, "lead": result.data[0]}
         
     except HTTPException:
         raise
     except Exception as e:
         logging.error(f"Error updating lead {lead_id}: {e}", exc_info=True)
-        await database.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update lead: {str(e)}")
 
 # Newport Beach Dialer Endpoints
 @app.post("/api/newport-beach/prospects")
 async def create_prospect(
     prospect_data: dict,
-    database: AsyncSession = Depends(get_db)
 ):
     """Add a new prospect to call list"""
     try:
-        prospect_create = ProspectCreate(
-            business_id="newport-beach",
-            name=prospect_data.get("name"),
-            phone_number=prospect_data.get("phone_number"),
-            email=prospect_data.get("email"),
-            notes=prospect_data.get("notes")
-        )
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+            
+        prospect_create_data = {
+            "business_id": "newport-beach",
+            "name": prospect_data.get("name"),
+            "phone_number": prospect_data.get("phone_number"),
+            "email": prospect_data.get("email"),
+            "notes": prospect_data.get("notes"),
+            "status": "new"
+        }
         
-        logging.info(f"Creating prospect: {prospect_create.model_dump()}")
+        logging.info(f"Creating prospect: {prospect_create_data}")
         
-        query = insert(prospects).values(**prospect_create.model_dump())
-        result = await database.execute(query)
-        await database.commit()
+        result = supabase.table('prospects').insert(prospect_create_data).execute()
         
-        # Return created prospect
-        select_query = select(prospects).where(prospects.c.id == result.inserted_primary_key[0])
-        new_prospect = await database.execute(select_query)
-        db_prospect = new_prospect.first()
-        
-        return {"success": True, "prospect": dict(db_prospect._mapping)}
+        if result.data:
+            return {"success": True, "prospect": result.data[0]}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create prospect")
         
     except Exception as e:
         logging.error(f"Error creating prospect: {e}", exc_info=True)
-        await database.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create prospect: {str(e)}")
 
 @app.get("/api/newport-beach/prospects")
@@ -384,25 +372,24 @@ async def get_prospects(
     limit: int = 50,
     offset: int = 0,
     status: str = None,
-    database: AsyncSession = Depends(get_db)
 ):
     """Get prospects for the dialer"""
     try:
-        query = select(prospects).where(prospects.c.business_id == "newport-beach")
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+            
+        query = supabase.table('prospects').select('*').eq('business_id', 'newport-beach')
         
         if status:
-            query = query.where(prospects.c.status == status)
+            query = query.eq('status', status)
             
-        query = query.limit(limit).offset(offset).order_by(prospects.c.created_at.desc())
-        result = await database.execute(query)
-        prospect_records = result.fetchall()
-        
-        prospects_list = [dict(row._mapping) for row in prospect_records]
+        result = query.range(offset, offset + limit - 1).order('created_at', desc=True).execute()
         
         return {
             "success": True,
-            "prospects": prospects_list,
-            "count": len(prospects_list),
+            "prospects": result.data,
+            "count": len(result.data),
             "business_id": "newport-beach"
         }
         
@@ -414,52 +401,44 @@ async def get_prospects(
 async def update_prospect(
     prospect_id: int,
     update_data: dict,
-    database: AsyncSession = Depends(get_db)
 ):
     """Update prospect status or information"""
     try:
-        from sqlalchemy import update
-        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+            
         # Update prospect
-        update_query = update(prospects).where(prospects.c.id == prospect_id).values(**update_data)
-        await database.execute(update_query)
-        await database.commit()
+        result = supabase.table('prospects').update(update_data).eq('id', prospect_id).execute()
         
-        # Return updated prospect
-        select_query = select(prospects).where(prospects.c.id == prospect_id)
-        updated_result = await database.execute(select_query)
-        updated_prospect = updated_result.first()
-        
-        if not updated_prospect:
+        if not result.data:
             raise HTTPException(status_code=404, detail="Prospect not found")
         
-        return {"success": True, "prospect": dict(updated_prospect._mapping)}
+        return {"success": True, "prospect": result.data[0]}
         
     except HTTPException:
         raise
     except Exception as e:
         logging.error(f"Error updating prospect {prospect_id}: {e}", exc_info=True)
-        await database.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update prospect: {str(e)}")
 
 @app.get("/api/newport-beach/call-logs")
 async def get_call_logs(
     limit: int = 50,
     offset: int = 0,
-    database: AsyncSession = Depends(get_db)
 ):
     """Get call history for Newport Beach"""
     try:
-        query = select(call_logs).where(call_logs.c.business_id == "newport-beach").limit(limit).offset(offset).order_by(call_logs.c.created_at.desc())
-        result = await database.execute(query)
-        call_records = result.fetchall()
-        
-        calls_list = [dict(row._mapping) for row in call_records]
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database connection not available")
+            
+        result = supabase.table('call_logs').select('*').eq('business_id', 'newport-beach').range(offset, offset + limit - 1).order('created_at', desc=True).execute()
         
         return {
             "success": True,
-            "calls": calls_list,
-            "count": len(calls_list),
+            "calls": result.data,
+            "count": len(result.data),
             "business_id": "newport-beach"
         }
         
