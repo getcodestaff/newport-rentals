@@ -1,4 +1,5 @@
 import datetime
+import os
 from sqlalchemy import (
     MetaData,
     Table,
@@ -10,9 +11,14 @@ from sqlalchemy import (
     ForeignKey,
 )
 from pydantic import BaseModel, EmailStr
+from dotenv import load_dotenv
 
-# Synchronous Database URL for Alembic
-DATABASE_URL = "postgresql+psycopg2://postgres:Theonly***4me@localhost/contractor_leads_bot_db"
+load_dotenv()
+
+# Synchronous Database URL for Alembic (Supabase)
+# Convert postgres:// to postgresql+psycopg2:// for psycopg2
+postgres_url_sync = os.getenv("POSTGRES_URL_NON_POOLING", "postgres://postgres.xjjvdxomublvmzqaopbz:w0m3S3jOh2o6OqRn@aws-1-us-west-1.pooler.supabase.com:5432/postgres?sslmode=require")
+DATABASE_URL = postgres_url_sync.replace("postgres://", "postgresql+psycopg2://", 1)
 
 metadata = MetaData()
 

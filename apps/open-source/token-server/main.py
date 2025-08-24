@@ -1,7 +1,7 @@
 import os
 import uuid
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -11,6 +11,10 @@ from livekit.protocol.sip import CreateSIPParticipantRequest
 from dotenv import load_dotenv
 import datetime
 from fastapi import WebSocket, WebSocketDisconnect
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, insert
+from models import businesses, leads, prospects, call_logs, LeadCreate, Lead, Business, ProspectCreate, Prospect, CallLogCreate, CallLog, get_db
+import logging
 
 # Load environment variables from the .env file in the current directory
 load_dotenv()
@@ -68,7 +72,7 @@ async def get_token(request: TokenRequest):
     return {"token": token}
 
 @app.post("/api/make-call")
-async def make_call(request: MakeCallRequest):
+async def make_call(request: MakeCallRequest, database: AsyncSession = Depends(get_db)):
     if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET or not LIVEKIT_URL:
         raise HTTPException(status_code=500, detail="LiveKit credentials not configured")
     
@@ -117,12 +121,52 @@ async def make_call(request: MakeCallRequest):
         sip_info = await lk_api.sip.create_sip_participant(sip_request)
         print(f"Call initiated successfully: {sip_info}")
         
+        # Log the call to database
+        try:
+            # Check if this phone number is a known prospect
+            prospect_query = select(prospects).where(prospects.c.phone_number == request.phone_number).where(prospects.c.business_id == "newport-beach")
+            prospect_result = await database.execute(prospect_query)
+            prospect = prospect_result.first()
+            
+            prospect_id = prospect.id if prospect else None
+            
+            # Create call log
+            call_log = CallLogCreate(
+                prospect_id=prospect_id,
+                business_id="newport-beach",
+                phone_number=request.phone_number,
+                room_name=room_name,
+                call_status="initiated"
+            )
+            
+            log_query = insert(call_logs).values(**call_log.model_dump())
+            log_result = await database.execute(log_query)
+            await database.commit()
+            
+            # Update prospect call count and last called time if it exists
+            if prospect:
+                from sqlalchemy import update
+                update_query = update(prospects).where(prospects.c.id == prospect.id).values(
+                    last_called=datetime.datetime.utcnow(),
+                    call_count=prospects.c.call_count + 1,
+                    status="contacted"
+                )
+                await database.execute(update_query)
+                await database.commit()
+            
+            logging.info(f"Call logged with ID: {log_result.inserted_primary_key[0]}")
+            
+        except Exception as log_error:
+            logging.error(f"Failed to log call: {log_error}")
+            # Don't fail the call if logging fails
+        
         return {
             "success": True,
             "room_name": room_name,
             "call_id": sip_info.participant_identity,
             "phone_number": request.phone_number,
-            "message": f"Calling {request.phone_number}..."
+            "message": f"Calling {request.phone_number}...",
+            "prospect_id": prospect_id if prospect else None
         }
         
     except Exception as e:
@@ -162,6 +206,251 @@ async def create_sip_trunk(request: CreateTrunkRequest):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create SIP trunk: {str(e)}")
+
+# Newport Beach Lead Management Endpoints
+@app.post("/api/newport-beach/leads")
+async def create_newport_lead(
+    lead_data: dict,
+    database: AsyncSession = Depends(get_db)
+):
+    """Create a new lead for Newport Beach Rentals - Public endpoint for dialer"""
+    try:
+        # Validate and clean the lead data
+        lead_create = LeadCreate(
+            business_id="newport-beach",
+            visitor_name=lead_data.get("visitor_name"),
+            visitor_email=lead_data.get("visitor_email"),
+            visitor_phone=lead_data.get("visitor_phone"),
+            inquiry=lead_data.get("inquiry", "Lead from Newport Beach dialer")
+        )
+        
+        logging.info(f"Creating Newport Beach lead: {lead_create.model_dump()}")
+        
+        # Insert into database
+        query = insert(leads).values(**lead_create.model_dump())
+        result = await database.execute(query)
+        await database.commit()
+        
+        logging.info(f"Successfully created lead with ID: {result.inserted_primary_key[0]}")
+        
+        # Return the created lead
+        select_query = select(leads).where(leads.c.id == result.inserted_primary_key[0])
+        new_lead_record = await database.execute(select_query)
+        db_lead = new_lead_record.first()
+        
+        if not db_lead:
+            raise HTTPException(status_code=500, detail="Could not retrieve newly created lead.")
+        
+        return {"success": True, "lead": dict(db_lead._mapping)}
+        
+    except Exception as e:
+        logging.error(f"Error creating Newport Beach lead: {e}", exc_info=True)
+        await database.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create lead: {str(e)}")
+
+@app.get("/api/newport-beach/leads")
+async def get_newport_leads(
+    limit: int = 50,
+    offset: int = 0,
+    database: AsyncSession = Depends(get_db)
+):
+    """Get all leads for Newport Beach Rentals"""
+    try:
+        query = select(leads).where(leads.c.business_id == "newport-beach").limit(limit).offset(offset).order_by(leads.c.captured_at.desc())
+        result = await database.execute(query)
+        lead_records = result.fetchall()
+        
+        leads_list = [dict(row._mapping) for row in lead_records]
+        
+        return {
+            "success": True,
+            "leads": leads_list,
+            "count": len(leads_list),
+            "business_id": "newport-beach"
+        }
+        
+    except Exception as e:
+        logging.error(f"Error fetching Newport Beach leads: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch leads: {str(e)}")
+
+@app.get("/api/newport-beach/leads/{lead_id}")
+async def get_newport_lead(
+    lead_id: int,
+    database: AsyncSession = Depends(get_db)
+):
+    """Get specific lead by ID"""
+    try:
+        query = select(leads).where(leads.c.id == lead_id).where(leads.c.business_id == "newport-beach")
+        result = await database.execute(query)
+        lead_record = result.first()
+        
+        if not lead_record:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        
+        return {"success": True, "lead": dict(lead_record._mapping)}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error fetching lead {lead_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch lead: {str(e)}")
+
+@app.put("/api/newport-beach/leads/{lead_id}")
+async def update_newport_lead(
+    lead_id: int,
+    update_data: dict,
+    database: AsyncSession = Depends(get_db)
+):
+    """Update lead status or information"""
+    try:
+        # Check if lead exists
+        select_query = select(leads).where(leads.c.id == lead_id).where(leads.c.business_id == "newport-beach")
+        result = await database.execute(select_query)
+        existing_lead = result.first()
+        
+        if not existing_lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        
+        # Update the lead
+        from sqlalchemy import update
+        update_query = update(leads).where(leads.c.id == lead_id).values(**update_data)
+        await database.execute(update_query)
+        await database.commit()
+        
+        # Return updated lead
+        updated_result = await database.execute(select_query)
+        updated_lead = updated_result.first()
+        
+        return {"success": True, "lead": dict(updated_lead._mapping)}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error updating lead {lead_id}: {e}", exc_info=True)
+        await database.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update lead: {str(e)}")
+
+# Newport Beach Dialer Endpoints
+@app.post("/api/newport-beach/prospects")
+async def create_prospect(
+    prospect_data: dict,
+    database: AsyncSession = Depends(get_db)
+):
+    """Add a new prospect to call list"""
+    try:
+        prospect_create = ProspectCreate(
+            business_id="newport-beach",
+            name=prospect_data.get("name"),
+            phone_number=prospect_data.get("phone_number"),
+            email=prospect_data.get("email"),
+            notes=prospect_data.get("notes")
+        )
+        
+        logging.info(f"Creating prospect: {prospect_create.model_dump()}")
+        
+        query = insert(prospects).values(**prospect_create.model_dump())
+        result = await database.execute(query)
+        await database.commit()
+        
+        # Return created prospect
+        select_query = select(prospects).where(prospects.c.id == result.inserted_primary_key[0])
+        new_prospect = await database.execute(select_query)
+        db_prospect = new_prospect.first()
+        
+        return {"success": True, "prospect": dict(db_prospect._mapping)}
+        
+    except Exception as e:
+        logging.error(f"Error creating prospect: {e}", exc_info=True)
+        await database.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create prospect: {str(e)}")
+
+@app.get("/api/newport-beach/prospects")
+async def get_prospects(
+    limit: int = 50,
+    offset: int = 0,
+    status: str = None,
+    database: AsyncSession = Depends(get_db)
+):
+    """Get prospects for the dialer"""
+    try:
+        query = select(prospects).where(prospects.c.business_id == "newport-beach")
+        
+        if status:
+            query = query.where(prospects.c.status == status)
+            
+        query = query.limit(limit).offset(offset).order_by(prospects.c.created_at.desc())
+        result = await database.execute(query)
+        prospect_records = result.fetchall()
+        
+        prospects_list = [dict(row._mapping) for row in prospect_records]
+        
+        return {
+            "success": True,
+            "prospects": prospects_list,
+            "count": len(prospects_list),
+            "business_id": "newport-beach"
+        }
+        
+    except Exception as e:
+        logging.error(f"Error fetching prospects: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch prospects: {str(e)}")
+
+@app.put("/api/newport-beach/prospects/{prospect_id}")
+async def update_prospect(
+    prospect_id: int,
+    update_data: dict,
+    database: AsyncSession = Depends(get_db)
+):
+    """Update prospect status or information"""
+    try:
+        from sqlalchemy import update
+        
+        # Update prospect
+        update_query = update(prospects).where(prospects.c.id == prospect_id).values(**update_data)
+        await database.execute(update_query)
+        await database.commit()
+        
+        # Return updated prospect
+        select_query = select(prospects).where(prospects.c.id == prospect_id)
+        updated_result = await database.execute(select_query)
+        updated_prospect = updated_result.first()
+        
+        if not updated_prospect:
+            raise HTTPException(status_code=404, detail="Prospect not found")
+        
+        return {"success": True, "prospect": dict(updated_prospect._mapping)}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error updating prospect {prospect_id}: {e}", exc_info=True)
+        await database.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update prospect: {str(e)}")
+
+@app.get("/api/newport-beach/call-logs")
+async def get_call_logs(
+    limit: int = 50,
+    offset: int = 0,
+    database: AsyncSession = Depends(get_db)
+):
+    """Get call history for Newport Beach"""
+    try:
+        query = select(call_logs).where(call_logs.c.business_id == "newport-beach").limit(limit).offset(offset).order_by(call_logs.c.created_at.desc())
+        result = await database.execute(query)
+        call_records = result.fetchall()
+        
+        calls_list = [dict(row._mapping) for row in call_records]
+        
+        return {
+            "success": True,
+            "calls": calls_list,
+            "count": len(calls_list),
+            "business_id": "newport-beach"
+        }
+        
+    except Exception as e:
+        logging.error(f"Error fetching call logs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch call logs: {str(e)}")
 
 @app.get("/api/debug")
 async def debug_config():
