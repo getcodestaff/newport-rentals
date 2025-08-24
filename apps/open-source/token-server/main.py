@@ -9,6 +9,8 @@ from livekit import api
 from livekit.api import LiveKitAPI
 from livekit.protocol.sip import CreateSIPParticipantRequest
 from dotenv import load_dotenv
+import datetime
+from fastapi import WebSocket, WebSocketDisconnect
 
 # Load environment variables from the .env file in the current directory
 load_dotenv()
@@ -221,6 +223,15 @@ async def get_status():
         }
     }
 
+@app.get("/dashboard", response_class=HTMLResponse)
+async def call_dashboard():
+    """Live Call Dashboard"""
+    try:
+        with open("dashboard.html", "r") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Dashboard not found</h1>", status_code=404)
+
 @app.get("/", response_class=HTMLResponse)
 async def api_dashboard():
     """API Management Dashboard"""
@@ -373,6 +384,185 @@ async function makeCall(phoneNumber) {{
     """
     
     return html_content
+
+@app.get("/api/calls/live")
+async def get_live_calls():
+    """Get all currently active calls from LiveKit"""
+    if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET or not LIVEKIT_URL:
+        raise HTTPException(status_code=500, detail="LiveKit credentials not configured")
+    
+    try:
+        lk_api = LiveKitAPI(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
+        
+        # Get all rooms
+        rooms_response = await lk_api.room.list_rooms()
+        active_calls = []
+        
+        for room in rooms_response.rooms:
+            # Filter for outbound call rooms
+            if room.name.startswith("newport_outbound_"):
+                # Get participants in this room
+                participants_response = await lk_api.room.list_participants(room.name)
+                
+                call_data = {
+                    "room_name": room.name,
+                    "creation_time": room.creation_time,
+                    "num_participants": room.num_participants,
+                    "participants": [],
+                    "call_status": "active" if room.num_participants > 0 else "ended",
+                    "call_type": "outbound"
+                }
+                
+                # Add participant details
+                for participant in participants_response.participants:
+                    participant_data = {
+                        "identity": participant.identity,
+                        "name": participant.name,
+                        "joined_at": participant.joined_at,
+                        "is_agent": participant.identity.startswith("newport-rentals"),
+                        "is_sip": participant.identity.startswith("newport_caller_")
+                    }
+                    call_data["participants"].append(participant_data)
+                
+                active_calls.append(call_data)
+        
+        return {
+            "success": True,
+            "active_calls": active_calls,
+            "total_calls": len(active_calls),
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get live calls: {str(e)}")
+
+@app.get("/api/calls/history")
+async def get_call_history():
+    """Get recent call history from LiveKit"""
+    if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET or not LIVEKIT_URL:
+        raise HTTPException(status_code=500, detail="LiveKit credentials not configured")
+    
+    try:
+        lk_api = LiveKitAPI(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
+        
+        # Get all rooms (including ended ones)
+        rooms_response = await lk_api.room.list_rooms()
+        call_history = []
+        
+        for room in rooms_response.rooms:
+            if room.name.startswith("newport_outbound_"):
+                # Calculate call duration
+                creation_time = datetime.datetime.fromtimestamp(room.creation_time)
+                duration = None
+                if room.num_participants == 0:  # Call ended
+                    # Estimate duration (you might want to store actual end times)
+                    duration = "completed"
+                
+                call_data = {
+                    "room_name": room.name,
+                    "creation_time": room.creation_time,
+                    "start_time": creation_time.isoformat(),
+                    "num_participants": room.num_participants,
+                    "call_status": "active" if room.num_participants > 0 else "ended",
+                    "duration": duration,
+                    "call_type": "outbound"
+                }
+                
+                call_history.append(call_data)
+        
+        # Sort by creation time (newest first)
+        call_history.sort(key=lambda x: x["creation_time"], reverse=True)
+        
+        return {
+            "success": True,
+            "call_history": call_history[:50],  # Last 50 calls
+            "total_calls": len(call_history),
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get call history: {str(e)}")
+
+@app.get("/api/calls/stats")
+async def get_call_stats():
+    """Get call statistics and metrics"""
+    if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET or not LIVEKIT_URL:
+        raise HTTPException(status_code=500, detail="LiveKit credentials not configured")
+    
+    try:
+        lk_api = LiveKitAPI(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
+        
+        # Get all rooms
+        rooms_response = await lk_api.room.list_rooms()
+        
+        total_calls = 0
+        active_calls = 0
+        ended_calls = 0
+        
+        for room in rooms_response.rooms:
+            if room.name.startswith("newport_outbound_"):
+                total_calls += 1
+                if room.num_participants > 0:
+                    active_calls += 1
+                else:
+                    ended_calls += 1
+        
+        # Calculate success rate (calls with participants)
+        success_rate = (ended_calls / total_calls * 100) if total_calls > 0 else 0
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_calls": total_calls,
+                "active_calls": active_calls,
+                "ended_calls": ended_calls,
+                "success_rate": round(success_rate, 2),
+                "agent_status": "online" if active_calls > 0 else "idle"
+            },
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get call stats: {str(e)}")
+
+# WebSocket endpoint for real-time call data broadcasting
+@app.websocket("/ws/calls")
+async def websocket_calls(websocket: WebSocket):
+    """WebSocket endpoint for real-time call data broadcasting"""
+    await websocket.accept()
+    
+    try:
+        while True:
+            # Send live call data every 5 seconds
+            lk_api = LiveKitAPI(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET)
+            rooms_response = await lk_api.room.list_rooms()
+            
+            active_calls = []
+            for room in rooms_response.rooms:
+                if room.name.startswith("newport_outbound_"):
+                    call_data = {
+                        "room_name": room.name,
+                        "num_participants": room.num_participants,
+                        "call_status": "active" if room.num_participants > 0 else "ended",
+                        "timestamp": datetime.datetime.now().isoformat()
+                    }
+                    active_calls.append(call_data)
+            
+            await websocket.send_json({
+                "type": "call_update",
+                "data": {
+                    "active_calls": active_calls,
+                    "total_active": len([c for c in active_calls if c["call_status"] == "active"])
+                }
+            })
+            
+            await asyncio.sleep(5)  # Update every 5 seconds
+            
+    except WebSocketDisconnect:
+        print("WebSocket client disconnected")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        await websocket.close()
 
 if __name__ == "__main__":
     # Use 0.0.0.0 to bind to all interfaces for Render deployment

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newport Rentals - Live Call Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.8;
+            font-size: 1.1em;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 30px;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            border-left: 4px solid #3498db;
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .calls-section {
+            padding: 30px;
+            border-top: 1px solid #ecf0f1;
+        }
+        
+        .calls-section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+        
+        .calls-grid {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .call-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 4px solid #27ae60;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .call-card.ended {
+            border-left-color: #e74c3c;
+            opacity: 0.7;
+        }
+        
+        .call-info h3 {
+            margin: 0 0 5px 0;
+            color: #2c3e50;
+            font-size: 1.2em;
+        }
+        
+        .call-info p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        
+        .call-status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .status-active {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+        
+        .status-ended {
+            background: #fadbd8;
+            color: #e74c3c;
+        }
+        
+        .refresh-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-bottom: 20px;
+            transition: background 0.2s;
+        }
+        
+        .refresh-btn:hover {
+            background: #2980b9;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+        
+        .error {
+            background: #fadbd8;
+            color: #e74c3c;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        
+        .timestamp {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            padding: 20px;
+            border-top: 1px solid #ecf0f1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏖️ Newport Rentals</h1>
+            <p>Live Call Dashboard</p>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="total-calls">-</div>
+                <div class="stat-label">Total Calls</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="active-calls">-</div>
+                <div class="stat-label">Active Calls</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="success-rate">-</div>
+                <div class="stat-label">Success Rate</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="agent-status">-</div>
+                <div class="stat-label">Agent Status</div>
+            </div>
+        </div>
+        
+        <div class="calls-section">
+            <button class="refresh-btn" onclick="loadData()">🔄 Refresh Data</button>
+            <h2>📞 Recent Calls</h2>
+            <div id="calls-container">
+                <div class="loading">Loading call data...</div>
+            </div>
+        </div>
+        
+        <div class="timestamp" id="last-updated">
+            Last updated: Never
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://newport-rentals.onrender.com';
+        
+        async function loadData() {
+            try {
+                // Load stats
+                const statsResponse = await fetch(`${API_BASE}/api/calls/stats`);
+                const statsData = await statsResponse.json();
+                
+                if (statsData.success) {
+                    document.getElementById('total-calls').textContent = statsData.stats.total_calls;
+                    document.getElementById('active-calls').textContent = statsData.stats.active_calls;
+                    document.getElementById('success-rate').textContent = statsData.stats.success_rate + '%';
+                    document.getElementById('agent-status').textContent = statsData.stats.agent_status;
+                }
+                
+                // Load call history
+                const historyResponse = await fetch(`${API_BASE}/api/calls/history`);
+                const historyData = await historyResponse.json();
+                
+                if (historyData.success) {
+                    displayCalls(historyData.call_history);
+                }
+                
+                document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleString()}`;
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('calls-container').innerHTML = 
+                    '<div class="error">Error loading call data. Please try again.</div>';
+            }
+        }
+        
+        function displayCalls(calls) {
+            const container = document.getElementById('calls-container');
+            
+            if (calls.length === 0) {
+                container.innerHTML = '<div class="loading">No calls found</div>';
+                return;
+            }
+            
+            const callsHTML = calls.map(call => {
+                const statusClass = call.call_status === 'active' ? 'status-active' : 'status-ended';
+                const cardClass = call.call_status === 'ended' ? 'call-card ended' : 'call-card';
+                const startTime = new Date(call.start_time).toLocaleString();
+                
+                return `
+                    <div class="${cardClass}">
+                        <div class="call-info">
+                            <h3>${call.room_name}</h3>
+                            <p>Started: ${startTime}</p>
+                            <p>Participants: ${call.num_participants}</p>
+                        </div>
+                        <div class="call-status ${statusClass}">
+                            ${call.call_status}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = callsHTML;
+        }
+        
+        // Load data on page load
+        loadData();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>
