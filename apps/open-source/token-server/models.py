@@ -19,7 +19,8 @@ load_dotenv()
 
 # Database connection setup
 postgres_url = os.getenv("POSTGRES_URL", "postgres://postgres.xjjvdxomublvmzqaopbz:w0m3S3jOh2o6OqRn@aws-1-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require&supa=base-pooler.x")
-ASYNC_DATABASE_URL = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
+# Convert postgres:// to postgresql+asyncpg:// and fix SSL parameter
+ASYNC_DATABASE_URL = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1).replace("sslmode=require", "ssl=require")
 
 # Create async engine
 engine = create_async_engine(ASYNC_DATABASE_URL)
