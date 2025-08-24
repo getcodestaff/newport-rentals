@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newport Beach Dialer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .prospect-form {
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e1e1e1;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background-color 0.3s;
+            margin-right: 10px;
+        }
+        
+        .btn:hover {
+            background: #5a67d8;
+        }
+        
+        .btn-success {
+            background: #48bb78;
+        }
+        
+        .btn-success:hover {
+            background: #38a169;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+        }
+        
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+        
+        .prospect-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .prospect-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #e1e1e1;
+            transition: background-color 0.3s;
+        }
+        
+        .prospect-item:hover {
+            background-color: #f7fafc;
+        }
+        
+        .prospect-info h4 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .prospect-info p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .prospect-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-new {
+            background: #e6fffa;
+            color: #234e52;
+        }
+        
+        .status-contacted {
+            background: #e6f7ff;
+            color: #0c4a6e;
+        }
+        
+        .status-qualified {
+            background: #fef7e0;
+            color: #92400e;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .success {
+            background: #c6f6d5;
+            color: #2f855a;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .call-logs {
+            grid-column: 1 / -1;
+        }
+        
+        .log-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #e1e1e1;
+        }
+        
+        .log-time {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .prospect-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .prospect-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏖️ Newport Beach Dialer</h1>
+            <p>Luxury Vacation Rental Outreach System</p>
+        </div>
+        
+        <div class="dashboard">
+            <!-- Add Prospect Form -->
+            <div class="card">
+                <h3>Add New Prospect</h3>
+                <form class="prospect-form" id="prospectForm">
+                    <div class="form-group">
+                        <label for="name">Name</label>
+                        <input type="text" id="name" name="name" placeholder="Enter prospect name">
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Phone Number *</label>
+                        <input type="tel" id="phone" name="phone_number" placeholder="+1234567890" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" placeholder="prospect@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes" name="notes" rows="3" placeholder="Add notes about this prospect..."></textarea>
+                    </div>
+                    <button type="submit" class="btn">Add Prospect</button>
+                </form>
+                <div id="addMessage"></div>
+            </div>
+            
+            <!-- Prospects List -->
+            <div class="card">
+                <h3>Prospects <button onclick="loadProspects()" class="btn" style="float: right; padding: 5px 10px; font-size: 12px;">Refresh</button></h3>
+                <div id="prospectsList" class="prospect-list">
+                    <div class="loading">Loading prospects...</div>
+                </div>
+            </div>
+            
+            <!-- Call Logs -->
+            <div class="card call-logs">
+                <h3>Recent Call Activity <button onclick="loadCallLogs()" class="btn" style="float: right; padding: 5px 10px; font-size: 12px;">Refresh</button></h3>
+                <div id="callLogs">
+                    <div class="loading">Loading call logs...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8002'; // Change this to your actual API URL
+        
+        // Load prospects on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProspects();
+            loadCallLogs();
+        });
+        
+        // Add prospect form handler
+        document.getElementById('prospectForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const prospectData = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/newport-beach/prospects`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(prospectData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('addMessage').innerHTML = '<div class="success">Prospect added successfully!</div>';
+                    e.target.reset();
+                    loadProspects(); // Refresh the list
+                } else {
+                    throw new Error(result.message || 'Failed to add prospect');
+                }
+            } catch (error) {
+                document.getElementById('addMessage').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        });
+        
+        // Load prospects function
+        async function loadProspects() {
+            try {
+                const response = await fetch(`${API_BASE}/api/newport-beach/prospects`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayProspects(result.prospects);
+                } else {
+                    throw new Error('Failed to load prospects');
+                }
+            } catch (error) {
+                document.getElementById('prospectsList').innerHTML = `<div class="error">Error loading prospects: ${error.message}</div>`;
+            }
+        }
+        
+        // Display prospects
+        function displayProspects(prospects) {
+            const container = document.getElementById('prospectsList');
+            
+            if (prospects.length === 0) {
+                container.innerHTML = '<div class="loading">No prospects found. Add some prospects to get started.</div>';
+                return;
+            }
+            
+            container.innerHTML = prospects.map(prospect => `
+                <div class="prospect-item">
+                    <div class="prospect-info">
+                        <h4>${prospect.name || 'No Name'}</h4>
+                        <p>${prospect.phone_number}</p>
+                        <p>${prospect.email || ''}</p>
+                        <p>${prospect.notes || ''}</p>
+                        <span class="status-badge status-${prospect.status}">${prospect.status}</span>
+                        <p class="log-time">Calls: ${prospect.call_count || 0} | Last: ${prospect.last_called ? new Date(prospect.last_called).toLocaleDateString() : 'Never'}</p>
+                    </div>
+                    <div class="prospect-actions">
+                        <button onclick="makeCall('${prospect.phone_number}', '${prospect.name || 'Prospect'}')" class="btn btn-success">📞 Call</button>
+                        <button onclick="updateProspectStatus(${prospect.id}, 'qualified')" class="btn">✅ Qualify</button>
+                        <button onclick="updateProspectStatus(${prospect.id}, 'dead')" class="btn btn-danger">❌ Dead</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Make call function
+        async function makeCall(phoneNumber, name) {
+            try {
+                const response = await fetch(`${API_BASE}/api/make-call`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        phone_number: phoneNumber,
+                        caller_name: 'Newport Beach Rentals'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`Calling ${name} at ${phoneNumber}...\nRoom: ${result.room_name}`);
+                    loadProspects(); // Refresh to show updated call count
+                    loadCallLogs(); // Refresh call logs
+                } else {
+                    throw new Error(result.detail || 'Call failed');
+                }
+            } catch (error) {
+                alert(`Error making call: ${error.message}`);
+            }
+        }
+        
+        // Update prospect status
+        async function updateProspectStatus(prospectId, status) {
+            try {
+                const response = await fetch(`${API_BASE}/api/newport-beach/prospects/${prospectId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ status })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    loadProspects(); // Refresh the list
+                } else {
+                    throw new Error('Failed to update status');
+                }
+            } catch (error) {
+                alert(`Error updating status: ${error.message}`);
+            }
+        }
+        
+        // Load call logs
+        async function loadCallLogs() {
+            try {
+                const response = await fetch(`${API_BASE}/api/newport-beach/call-logs`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayCallLogs(result.calls);
+                } else {
+                    throw new Error('Failed to load call logs');
+                }
+            } catch (error) {
+                document.getElementById('callLogs').innerHTML = `<div class="error">Error loading call logs: ${error.message}</div>`;
+            }
+        }
+        
+        // Display call logs
+        function displayCallLogs(calls) {
+            const container = document.getElementById('callLogs');
+            
+            if (calls.length === 0) {
+                container.innerHTML = '<div class="loading">No call logs found.</div>';
+                return;
+            }
+            
+            container.innerHTML = calls.slice(0, 10).map(call => `
+                <div class="log-item">
+                    <div>
+                        <strong>${call.phone_number}</strong>
+                        <span class="status-badge status-${call.call_status}">${call.call_status}</span>
+                        ${call.room_name ? `<br><small>Room: ${call.room_name}</small>` : ''}
+                    </div>
+                    <div class="log-time">${new Date(call.created_at).toLocaleString()}</div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>

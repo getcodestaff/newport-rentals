@@ -521,6 +521,15 @@ async def call_dashboard():
     except FileNotFoundError:
         return HTMLResponse(content="<h1>Dashboard not found</h1>", status_code=404)
 
+@app.get("/dialer", response_class=HTMLResponse)
+async def newport_dialer():
+    """Newport Beach Dialer Interface"""
+    try:
+        with open("dialer.html", "r") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Dialer not found</h1>", status_code=404)
+
 @app.get("/", response_class=HTMLResponse)
 async def api_dashboard():
     """API Management Dashboard"""
