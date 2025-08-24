@@ -88,7 +88,18 @@ async def make_call(request: MakeCallRequest):
             print(f"Room creation error: {room_error}")
             # Room might already exist, continue
         
-        # Create SIP participant using correct LiveKit API
+        # Create agent dispatch to ensure newport-rentals agent handles the call
+        dispatch_request = api.CreateAgentDispatchRequest(
+            agent_name="newport-rentals",
+            room=room_name,
+            metadata=f'{{"phone_number": "{request.phone_number}", "caller_name": "{request.caller_name}"}}'
+        )
+        
+        print(f"Creating agent dispatch for newport-rentals in room {room_name}")
+        dispatch_info = await lk_api.agent_dispatch.create_dispatch(dispatch_request)
+        print(f"Agent dispatch created: {dispatch_info}")
+        
+        # Then create SIP participant
         participant_identity = f"newport_caller_{uuid.uuid4().hex[:8]}"
         
         sip_request = CreateSIPParticipantRequest(

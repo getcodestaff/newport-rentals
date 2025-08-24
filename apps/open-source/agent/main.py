@@ -113,10 +113,9 @@ OPENING GREETING: Start every outbound call with: "Hi, is this the right number 
                 f"• End warmly and positively."
             )
         else:
-            # Default instructions using template
-            instructions = prompt_template.substitute(
-                business_name=os.getenv("BUSINESS_NAME", "Voice Sell AI"),
-                knowledge_base=os.getenv("KNOWLEDGE_BASE", "VoiceSell provides AI solutions for sales and customer service.")
+            # Fallback to Regina for any other Newport rooms
+            instructions = (
+                f"You are Regina with Newport Beach Vacation Properties. You help guests with their vacation rental needs."
             )
 
         await ctx.connect()
@@ -220,8 +219,8 @@ OPENING GREETING: Start every outbound call with: "Hi, is this the right number 
             logging.info("Agent running as Regina (inbound)")
             logging.info("Using Regina's personality for Newport Beach Vacation Properties")
         else:
-            logging.info("Agent running as voice-sell-agent")
-            logging.info("Using Voice Sell AI personality for this session")
+            logging.info("Agent running as Regina (fallback)")
+            logging.info("Using Regina fallback for Newport Beach Vacation Properties")
 
         await session_ended.wait()
         await session.aclose()
