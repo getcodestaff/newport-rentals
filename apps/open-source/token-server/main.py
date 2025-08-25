@@ -14,6 +14,7 @@ from livekit.api import LiveKitAPI
 from livekit.protocol.sip import CreateSIPParticipantRequest
 from dotenv import load_dotenv
 from supabase_client import get_supabase_client
+from calendar_service import get_calendar_service
 
 # Load environment variables from the .env file in the current directory
 load_dotenv()
@@ -856,6 +857,144 @@ async def get_call_stats():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get call stats: {str(e)}")
+
+# Calendar Integration Endpoints
+@app.get("/api/calendar/availability")
+async def check_calendar_availability(
+    date: str,  # Format: 2024-08-26
+    duration: int = 60  # Duration in minutes
+):
+    """Check available time slots for a specific date"""
+    try:
+        calendar_service = get_calendar_service()
+        
+        # Parse the date and create start/end times for the day
+        from datetime import datetime, timedelta
+        start_date = datetime.fromisoformat(date)
+        end_date = start_date + timedelta(days=1)
+        
+        # Convert to ISO format
+        start_iso = start_date.isoformat()
+        end_iso = end_date.isoformat()
+        
+        available_slots = calendar_service.check_availability(start_iso, end_iso, duration)
+        
+        return {
+            "success": True,
+            "date": date,
+            "available_slots": available_slots,
+            "total_slots": len(available_slots)
+        }
+        
+    except Exception as e:
+        logging.error(f"Error checking calendar availability: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to check availability: {str(e)}")
+
+@app.post("/api/calendar/book")
+async def book_appointment(booking_data: dict):
+    """Book an appointment in the calendar"""
+    try:
+        calendar_service = get_calendar_service()
+        
+        # Extract booking data
+        start_time = booking_data.get('start_time')
+        end_time = booking_data.get('end_time')
+        guest_name = booking_data.get('guest_name', '')
+        guest_phone = booking_data.get('guest_phone', '')
+        guest_email = booking_data.get('guest_email', '')
+        title = booking_data.get('title', f'Newport Beach Rental - {guest_name}')
+        description = booking_data.get('description', 'Property viewing appointment')
+        
+        if not start_time or not end_time:
+            raise HTTPException(status_code=400, detail="start_time and end_time are required")
+        
+        # Create the calendar event
+        result = calendar_service.create_event(
+            title=title,
+            start_time=start_time,
+            end_time=end_time,
+            guest_name=guest_name,
+            guest_phone=guest_phone,
+            guest_email=guest_email,
+            description=description
+        )
+        
+        if result.get('success'):
+            # Also log this booking in our database
+            try:
+                supabase = get_supabase_client()
+                if supabase:
+                    booking_log = {
+                        "business_id": "newport-beach",
+                        "visitor_name": guest_name,
+                        "visitor_phone": guest_phone,
+                        "visitor_email": guest_email,
+                        "inquiry": f"Calendar booking: {title}",
+                        "status": "scheduled"
+                    }
+                    supabase.table('leads').insert(booking_log).execute()
+                    logging.info("Booking logged to database")
+            except Exception as log_error:
+                logging.error(f"Failed to log booking to database: {log_error}")
+            
+            return {
+                "success": True,
+                "message": f"Appointment booked for {guest_name}",
+                "event_details": result
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result.get('error', 'Failed to create booking'))
+        
+    except Exception as e:
+        logging.error(f"Error booking appointment: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to book appointment: {str(e)}")
+
+@app.get("/api/calendar/events")
+async def get_upcoming_events(days: int = 7):
+    """Get upcoming calendar events"""
+    try:
+        calendar_service = get_calendar_service()
+        events = calendar_service.get_upcoming_events(days)
+        
+        return {
+            "success": True,
+            "upcoming_events": events,
+            "total_events": len(events),
+            "days_ahead": days
+        }
+        
+    except Exception as e:
+        logging.error(f"Error getting calendar events: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get events: {str(e)}")
+
+@app.get("/api/calendar/test")
+async def test_calendar_connection():
+    """Test Google Calendar connection"""
+    try:
+        calendar_service = get_calendar_service()
+        
+        if calendar_service.authenticate():
+            # Try to get a few upcoming events as a test
+            events = calendar_service.get_upcoming_events(1)
+            return {
+                "success": True,
+                "message": "✅ Google Calendar connected successfully",
+                "calendar_id": calendar_service.calendar_id,
+                "test_events_found": len(events)
+            }
+        else:
+            return {
+                "success": False,
+                "message": "❌ Failed to connect to Google Calendar",
+                "error": "Authentication failed"
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "message": "❌ Calendar connection error",
+            "error": str(e)
+        }
 
 # WebSocket endpoint for real-time call data broadcasting
 @app.websocket("/ws/calls")
