@@ -15,6 +15,7 @@ from livekit.protocol.sip import CreateSIPParticipantRequest
 from dotenv import load_dotenv
 from supabase_client import get_supabase_client
 from calendar_service import get_calendar_service
+from agent_functions import check_calendar_availability, book_calendar_appointment, get_available_dates
 
 # Load environment variables from the .env file in the current directory
 load_dotenv()
@@ -995,6 +996,66 @@ async def test_calendar_connection():
             "message": "❌ Calendar connection error",
             "error": str(e)
         }
+
+# Agent Function Endpoints (for LiveKit agent to call during conversations)
+@app.post("/api/agent/check-availability")
+async def agent_check_availability(request_data: dict):
+    """Agent function to check calendar availability during conversation"""
+    try:
+        date = request_data.get("date")
+        duration = request_data.get("duration", 60)
+        
+        if not date:
+            return {"success": False, "message": "Please provide a date to check availability."}
+        
+        result = await check_calendar_availability(date, duration)
+        return result
+        
+    except Exception as e:
+        logging.error(f"Agent availability check error: {e}")
+        return {"success": False, "message": "I'm having trouble checking the calendar right now."}
+
+@app.post("/api/agent/book-appointment") 
+async def agent_book_appointment(request_data: dict):
+    """Agent function to book appointments during conversation"""
+    try:
+        guest_name = request_data.get("guest_name")
+        guest_phone = request_data.get("guest_phone") 
+        start_time = request_data.get("start_time")
+        end_time = request_data.get("end_time")
+        guest_email = request_data.get("guest_email", "")
+        description = request_data.get("description", "")
+        
+        if not all([guest_name, guest_phone, start_time, end_time]):
+            return {"success": False, "message": "I need your name, phone number, and preferred time to book the appointment."}
+        
+        result = await book_calendar_appointment(
+            guest_name=guest_name,
+            guest_phone=guest_phone,
+            start_time=start_time,
+            end_time=end_time,
+            guest_email=guest_email,
+            description=description
+        )
+        return result
+        
+    except Exception as e:
+        logging.error(f"Agent booking error: {e}")
+        return {"success": False, "message": "I encountered an error while booking your appointment."}
+
+@app.get("/api/agent/available-dates")
+async def agent_available_dates():
+    """Get upcoming available dates for agent to suggest"""
+    try:
+        dates = get_available_dates()
+        return {
+            "success": True,
+            "available_dates": dates,
+            "message": "Here are the upcoming dates available for property viewings:"
+        }
+    except Exception as e:
+        logging.error(f"Error getting available dates: {e}")
+        return {"success": False, "message": "I'm having trouble getting available dates."}
 
 # WebSocket endpoint for real-time call data broadcasting
 @app.websocket("/ws/calls")
