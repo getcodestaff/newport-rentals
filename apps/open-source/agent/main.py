@@ -48,8 +48,8 @@ async def entrypoint(ctx: agents.JobContext):
         logging.info(f"Room name: {room_name}")
         
         if "outbound" in room_name.lower():
-            # Use Ashley personality for outbound calls from template
-            with open("devin-linkedin-prompt.template", "r") as f:
+            # Use Regina personality for outbound calls from template
+            with open("outbound-prompt.template", "r") as f:
                 instructions = f.read()
         elif "newport" in room_name.lower():
             # Use Regina personality for inbound calls from template
