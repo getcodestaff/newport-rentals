@@ -158,3 +158,16 @@ This project would not be possible without the incredible open-source work of ot
 
 *   [LiveKit](https://livekit.io/): For providing the powerful, real-time WebRTC infrastructure that powers all communication.
 *   [LiveKit Agent Starter - React](https://github.com/livekit-examples/agent-starter-react): For providing the excellent, open-source frontend template that we used as a starting point for our user interface.
+
+
+
+⏺ To share your Google Calendar with the service account:
+
+  1. Go to Google Calendar: https://calendar.google.com
+  2. Click the Settings gear (top right) → "Settings"
+  3. In the left sidebar, click on your calendar name (usually your email)
+  4. Scroll down to "Share with specific people"
+  5. Click "Add people"
+  6. Enter: voice-sell-ai@codestaffus.iam.gserviceaccount.com
+  7. Set permission to: "Make changes to events"
+  8. Click "Send"
