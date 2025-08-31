@@ -139,7 +139,7 @@ async def make_call(request: MakeCallRequest):
             room_name=room_name,
             participant_identity=participant_identity,
             participant_name=request.caller_name,
-            wait_until_answered=True
+            wait_until_answered=False
         )
         
         print(f"Making call to {phone_number} using trunk {SIP_TRUNK_ID} in room {room_name}")
